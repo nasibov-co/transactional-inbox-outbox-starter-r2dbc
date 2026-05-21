@@ -100,7 +100,7 @@ data class TransactionalProperties(
         var maxImmediateAttempts: Int = 3,
 
         /**
-         * Initial retry delay used for exponential backoff.
+         * Initial retry delay used.
          *
          * Default: 1000 milliseconds.
          */
