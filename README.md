@@ -1,183 +1,226 @@
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.fnasibov/transactional-inbox-outbox-starter-r2dbc?label=maven%20central)](https://central.sonatype.com/artifact/io.github.fnasibov/transactional-inbox-outbox-starter-r2dbc)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+
 # Transactional Inbox/Outbox R2DBC Starter
 
-A lightweight Spring Boot starter for implementing the **Transactional Outbox / Inbox pattern** using **R2DBC + Coroutines**.
+A lightweight Spring Boot starter for implementing transactional inbox/outbox processing with **R2DBC** and **Kotlin coroutines**.
 
-It provides a ready-to-use event processing pipeline with database-backed reliability, retries and concurrent processing.
+The starter polls event rows from your database, dispatches them to typed handlers, applies retry rules, and moves exhausted events to `DEAD_LETTER`.
 
----
+## Installation
 
-# 🚀 Quick Start (How to use)
-
-This section is everything you need to start using the starter.
-
-## 1. Define an event
-
-All events must implement `Event` and map to a DB table:
+Gradle Kotlin DSL:
 
 ```kotlin
+dependencies {
+    implementation("io.github.fnasibov:transactional-inbox-outbox-starter-r2dbc:1.0.1")
+}
+```
+
+The consuming application must also provide a configured R2DBC connection and a `ReactiveTransactionManager`.
+
+## Quick Start
+
+### 1. Define an event entity
+
+Each event type is a Spring Data R2DBC entity and must implement `Event`.
+
+```kotlin
+import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.Event
+import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.EventStatus
+import org.springframework.data.annotation.Id
+import org.springframework.data.relational.core.mapping.Table
+import java.time.ZonedDateTime
+import java.util.UUID
+
 @Table("payment_events")
 data class PaymentEvent(
+    @Id
     override val id: UUID,
-    override val payload: String,
-    override val status: EventStatus,
-    override val createdAt: ZonedDateTime,
-    override val updatedAt: ZonedDateTime?,
-    override val retryCount: Int,
-    override val lastAttemptAt: ZonedDateTime?,
-    override val nextRetryAt: ZonedDateTime?
+    override val status: EventStatus = EventStatus.PENDING,
+    override val createdAt: ZonedDateTime = ZonedDateTime.now(),
+    override val updatedAt: ZonedDateTime? = null,
+    override val retryCount: Int = 0,
+    override val lastAttemptAt: ZonedDateTime? = null,
+    override val nextRetryAt: ZonedDateTime? = null,
+
+    val paymentId: UUID,
+    val amount: Long,
+    val currency: String
 ) : Event
 ```
 
----
+The table name is read from `@Table`, so the annotation is required for default polling.
 
-## 2. Create a handler
+### 2. Create the table
 
-Each event type must have at least one handler:
+The default repository expects the lifecycle columns from `Event` to exist in snake case.
+
+```sql
+CREATE TABLE payment_events (
+    id UUID PRIMARY KEY,
+    status VARCHAR(32) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ,
+    retry_count INT NOT NULL DEFAULT 0,
+    last_attempt_at TIMESTAMPTZ,
+    next_retry_at TIMESTAMPTZ,
+
+    payment_id UUID NOT NULL,
+    amount BIGINT NOT NULL,
+    currency VARCHAR(3) NOT NULL
+);
+
+CREATE INDEX idx_payment_events_polling
+    ON payment_events (status, next_retry_at, created_at);
+```
+
+### 3. Register a handler
+
+Every event type that should be processed must have at least one `EventHandler` bean.
 
 ```kotlin
-@Component
-class PaymentEventHandler : EventHandler<PaymentEvent> {
+import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.EventHandler
+import org.springframework.stereotype.Component
 
-    override fun supportedEventType() = PaymentEvent::class.java
+@Component
+class PaymentEventHandler(
+    private val paymentPublisher: PaymentPublisher
+) : EventHandler<PaymentEvent> {
+
+    override fun supportedEventType(): Class<PaymentEvent> =
+        PaymentEvent::class.java
 
     override suspend fun handle(event: PaymentEvent) {
-        println("Processing payment ${event.id}")
+        paymentPublisher.publish(
+            paymentId = event.paymentId,
+            amount = event.amount,
+            currency = event.currency
+        )
+    }
+
+    override suspend fun handleDeadLetter(event: PaymentEvent, error: Throwable) {
+        // Called only when the event is moved to DEAD_LETTER.
+        // Use it for logging, metrics, alerts, or compensating actions.
     }
 }
 ```
 
-You can add multiple handlers for the same event type — they will all be executed.
+Multiple handlers can support the same event type. They are executed sequentially for a consumed event; if any handler fails, the event is marked as failed according to the retry policy.
 
----
-
-## 3. Enable configuration
+### 4. Enable the starter
 
 ```yaml
 transactional:
   enabled: true
 ```
 
-Optional tuning:
+When enabled, auto-configuration creates the repository, processor, coroutine scope, and lifecycle starter. Processing starts with the Spring application.
+
+## Configuration
+
+All properties live under the `transactional` prefix.
 
 ```yaml
 transactional:
-  processing:
-    concurrency: 5
+  enabled: true
 
   polling:
+    # Polling interval while events are available.
+    activeIntervalMs: 100ms
+
+    # Maximum idle interval after exponential backoff when no events are found.
+    maxIdleIntervalMs: 30s
+
+    # Number of rows fetched by one poller in one database batch.
     batchSize: 15
+
+    # Internal channel capacity between pollers and workers.
     channelCapacity: 25
 
+    # Reserved polling-level concurrency setting.
+    maxConcurrency: 5
+
+  processing:
+    # Number of worker coroutines consuming events from the shared channel.
+    concurrency: 5
+
   retry:
+    # Number of failed processing attempts before DEAD_LETTER.
     maxImmediateAttempts: 3
+
+    # Delay before a FAILED event becomes eligible for another poll.
     initialDelayMs: 1000
 ```
 
----
+Defaults:
 
-## 4. Done
+| Property | Default |
+| --- | --- |
+| `transactional.enabled` | `false` |
+| `transactional.polling.activeIntervalMs` | `100ms` |
+| `transactional.polling.maxIdleIntervalMs` | `30s` |
+| `transactional.polling.batchSize` | `15` |
+| `transactional.polling.channelCapacity` | `25` |
+| `transactional.polling.maxConcurrency` | `5` |
+| `transactional.processing.concurrency` | `5` |
+| `transactional.retry.maxImmediateAttempts` | `3` |
+| `transactional.retry.initialDelayMs` | `1000` |
 
-That’s it.
+`activeIntervalMs` and `maxIdleIntervalMs` are `Duration` properties. Spring Boot can bind readable values such as `100ms`, `1s`, and `30s`.
 
-The system will:
+## Custom Batch Fetching
 
-* poll events from DB
-* push them into internal channel
-* execute handlers concurrently
-* retry failed events automatically
-* move unrecoverable events to DEAD_LETTER
+By default, the starter fetches eligible events from the table mapped by `@Table`, locks them with `FOR UPDATE SKIP LOCKED`, updates their status to `PROCESSING`, and returns the selected entities.
 
----
-
-# ⚙️ What happens internally (high-level)
-
-If you’re curious, the flow is:
-
-```
-Database → Poller → Channel → Worker → Handlers
-```
-
-But you don’t need to interact with these components directly.
-
----
-
-# 🔧 Extension points (optional)
-
-## Custom fetch logic per event type
-
-If default polling is not enough:
+Register `FetchBatchStrategy` when an event type needs custom selection, priority ordering, partitioning, or database-specific locking.
 
 ```kotlin
-@Component
-class PaymentFetchStrategy : FetchBatchStrategy<PaymentEvent> {
+import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.FetchBatchStrategy
+import org.springframework.stereotype.Component
 
-    override val eventType = PaymentEvent::class.java
+@Component
+class PaymentFetchStrategy(
+    private val repository: CustomPaymentEventRepository
+) : FetchBatchStrategy<PaymentEvent> {
+
+    override val eventType: Class<PaymentEvent> =
+        PaymentEvent::class.java
 
     override suspend fun fetchBatch(): List<PaymentEvent> {
-        return emptyList()
+        return repository.fetchPriorityBatch()
     }
 }
 ```
 
-Use this for:
+Custom strategies are responsible for their own locking, transaction boundaries, and status transitions.
 
-* priority queues
-* partitioned processing
-* custom locking logic
+## Processing Flow
 
----
-
-# 🧠 Architecture (internal details)
-
-This section is only relevant if you need to modify or debug the starter.
-
-## Core components
-
-### EventPoller
-
-Polls database and pushes events into channel with adaptive backoff.
-
-### EventWorker
-
-Consumes events and executes handlers with configurable concurrency.
-
-* handles retry logic
-* handles dead-letter transitions
-* isolates failures per event
-
-### EventRepository
-
-Responsible for:
-
-* batch fetching (`SKIP LOCKED`)
-* updating lifecycle state
-* retry management
-
-### EventProcessor
-
-Orchestrates pollers + workers.
-
-### EventProcessorStarter
-
-Spring lifecycle integration (auto start/stop).
-
----
-
-## Event lifecycle
-
-```
-PENDING → PROCESSING → PROCESSED
-                 ↘ FAILED → RETRY → DEAD_LETTER
+```text
+Database -> EventPoller -> Channel -> EventWorker -> EventHandler(s)
 ```
 
----
+For each registered event type, the starter starts a poller. Fetched events are sent into a shared coroutine channel and consumed by worker coroutines.
 
-## Key properties
+Lifecycle statuses:
 
-* DB-backed queue (no external broker required)
-* coroutine-based concurrency
-* safe polling with `FOR UPDATE SKIP LOCKED`
-* horizontal scalability
-* per-event customization via handlers and fetch strategies
+```text
+PENDING -> PROCESSING -> PROCESSED
+                    \-> FAILED -> PROCESSING
+                    \-> DEAD_LETTER
+```
+
+Failure behavior:
+
+- Handler failures call `markAsFailed`.
+- Failed events are retried after `retry.initialDelayMs`.
+- Once `retry.maxImmediateAttempts` is reached, the event moves to `DEAD_LETTER`.
+- `handleDeadLetter` is called only after the event reaches `DEAD_LETTER`.
+
+## Notes
+
+- The starter is database-backed and does not require an external broker.
+- Default polling uses `FOR UPDATE SKIP LOCKED`, so it is intended for databases that support this locking style.
+- A handler is required for an event type to be polled because pollers are created from registered handler event types.
+- Event classes can contain any domain-specific columns in addition to the fields required by `Event`.
