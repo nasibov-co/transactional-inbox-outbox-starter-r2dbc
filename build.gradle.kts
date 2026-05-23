@@ -7,7 +7,7 @@ plugins {
 }
 
 group = "com.fnasibov"
-version = "1.0.1"
+version = "1.0.2"
 
 java {
 	toolchain {
@@ -24,13 +24,17 @@ dependencies {
 	kapt(platform("org.springframework.boot:spring-boot-dependencies:4.0.6"))
 	api("org.springframework.boot:spring-boot-autoconfigure")
 	api("org.springframework.boot:spring-boot-starter-data-r2dbc")
+	implementation("org.springframework.boot:spring-boot-starter-validation")
+	implementation("io.micrometer:micrometer-core")
 	implementation("io.projectreactor.kotlin:reactor-kotlin-extensions")
 	implementation("io.github.oshai:kotlin-logging-jvm:8.0.02")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
+	compileOnly("org.springframework.boot:spring-boot-health")
 	kapt("org.springframework.boot:spring-boot-configuration-processor")
 
 	testImplementation("org.springframework.boot:spring-boot-starter-r2dbc-test")
+	testImplementation("org.springframework.boot:spring-boot-starter-actuator")
 	testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
 	testImplementation("io.mockk:mockk:1.14.9")
 	testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test")

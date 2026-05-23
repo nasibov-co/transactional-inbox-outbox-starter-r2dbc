@@ -4,6 +4,7 @@ import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.EventHandler
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.Event
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.configuration.TransactionalProperties
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import java.util.concurrent.atomic.AtomicBoolean
@@ -27,15 +28,18 @@ class EventProcessor(
     private val handlers: Map<Class<out Event>, List<EventHandler<out Event>>>,
     private val repository: EventRepository,
     private val properties: TransactionalProperties,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val metrics: EventProcessingMetrics?
 ) {
 
     private val started = AtomicBoolean(false)
+    private val pollerJobs = mutableListOf<Job>()
+    private val workerJobs = mutableListOf<Job>()
 
     /**
      * Internal buffer used to decouple polling and processing stages.
      *
-     * Capacity is configured via `transactional.polling.channelCapacity`.
+     * Capacity is configured via `transactional.polling.channel-capacity`.
      * Overflow strategy is set to SUSPEND to ensure backpressure.
      */
     private val channel = Channel<Event>(
@@ -59,7 +63,7 @@ class EventProcessor(
         }
 
         // Start pollers for each event type
-        handlers
+        val pollers = handlers
             .map { (eventType, _) -> eventType }
             .distinct()
             .map { eventType ->
@@ -68,18 +72,29 @@ class EventProcessor(
                     repository = repository,
                     properties = properties,
                     channel = channel,
-                    scope = scope
+                    scope = scope,
+                    metrics = metrics
                 )
             }
-            .forEach { it.start() }
+        pollerJobs += pollers.map { it.start() }
 
         // Start worker responsible for event dispatching
-        EventWorker(
+        workerJobs += EventWorker(
             handlers = handlers,
             repository = repository,
             properties = properties,
             channel = channel,
-            scope = scope
+            scope = scope,
+            metrics = metrics
         ).start()
+    }
+
+    fun stop() {
+        pollerJobs.forEach { it.cancel() }
+        channel.close()
+        workerJobs.forEach { it.cancel() }
+        pollerJobs.clear()
+        workerJobs.clear()
+        started.compareAndSet(true, false)
     }
 }
