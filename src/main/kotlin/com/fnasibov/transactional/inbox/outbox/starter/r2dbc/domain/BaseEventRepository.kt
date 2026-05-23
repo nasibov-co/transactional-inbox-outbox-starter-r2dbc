@@ -15,6 +15,7 @@ import reactor.core.publisher.Mono
 import java.time.Duration
 import java.time.ZonedDateTime
 import java.util.*
+import kotlin.math.pow
 
 /**
  * Default implementation of [EventRepository] responsible for managing
@@ -202,10 +203,10 @@ class BaseEventRepository(
 
         val nextRetryCount = event.retryCount + 1
         val now = ZonedDateTime.now()
-        val nextRetryAt = now.plus(Duration.ofMillis(properties.retry.initialDelayMs))
+        val nextRetryAt = now.plus(nextRetryDelay(nextRetryCount))
 
         val nextStatus =
-            if (nextRetryCount < properties.retry.maxImmediateAttempts) {
+            if (nextRetryCount < properties.retry.maxAttempts) {
                 EventStatus.FAILED
             } else {
                 EventStatus.DEAD_LETTER
@@ -244,6 +245,12 @@ class BaseEventRepository(
             .awaitSingle()
 
         return nextStatus
+    }
+
+    private fun nextRetryDelay(retryCount: Int): Duration {
+        val multiplier = properties.retry.multiplier.pow((retryCount - 1).coerceAtLeast(0))
+        val delayMillis = (properties.retry.initialDelay.toMillis() * multiplier).toLong()
+        return Duration.ofMillis(delayMillis).coerceAtMost(properties.retry.maxDelay)
     }
 
     /**
