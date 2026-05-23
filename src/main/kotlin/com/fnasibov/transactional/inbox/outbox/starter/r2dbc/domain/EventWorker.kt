@@ -7,8 +7,11 @@ import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.configuration.Trans
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.domain.exception.HandlerNotFoundException
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
+import java.time.Duration
+import java.time.Instant
 import kotlin.coroutines.cancellation.CancellationException
 
 /**
@@ -34,7 +37,8 @@ class EventWorker(
     private val repository: EventRepository,
     private val properties: TransactionalProperties,
     private val channel: Channel<Event>,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val metrics: EventProcessingMetrics?
 ) {
 
     private val log = KotlinLogging.logger {}
@@ -48,11 +52,12 @@ class EventWorker(
      * Number of concurrent workers is defined by configuration.
      */
     @Suppress("UNCHECKED_CAST")
-    fun start() {
-        repeat(properties.processing.concurrency) {
+    fun start(): List<Job> =
+        List(properties.processing.concurrency) {
             scope.launch {
                 for (event in channel) {
                     var handlers = emptyList<EventHandler<out Event>>()
+                    val startedAt = Instant.now()
                     try {
                         handlers = dispatch(event)
 
@@ -61,6 +66,7 @@ class EventWorker(
                         }
 
                         repository.markAsProcessed(event)
+                        metrics?.recordProcessed(Duration.between(startedAt, Instant.now()))
 
                     } catch (e: CancellationException) {
                         throw e
@@ -69,6 +75,7 @@ class EventWorker(
                         log.error(e) { e.message }
 
                         repository.markAsDeadLetter(event)
+                        metrics?.recordDeadLetter()
 
                         handleDeadLetterSafely(event, handlers, e)
 
@@ -78,15 +85,16 @@ class EventWorker(
                         }
 
                         val status = repository.markAsFailed(event)
+                        metrics?.recordFailed()
 
                         if (status == EventStatus.DEAD_LETTER) {
+                            metrics?.recordDeadLetter()
                             handleDeadLetterSafely(event, handlers, e)
                         }
                     }
                 }
             }
         }
-    }
 
     /**
      * Resolves handlers for the given event type.

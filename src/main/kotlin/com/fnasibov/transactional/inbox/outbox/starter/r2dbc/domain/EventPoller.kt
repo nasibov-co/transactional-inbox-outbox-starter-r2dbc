@@ -4,10 +4,12 @@ import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.Event
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.configuration.TransactionalProperties
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.coroutines.cancellation.CancellationException
 import java.time.Duration
 
 /**
@@ -29,7 +31,8 @@ class EventPoller(
     private val repository: EventRepository,
     private val channel: Channel<Event>,
     private val properties: TransactionalProperties,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val metrics: EventProcessingMetrics?
 ) {
 
     private val log = KotlinLogging.logger {}
@@ -42,33 +45,37 @@ class EventPoller(
      * to the processing channel.
      *
      * Backoff strategy:
-     * - uses `activeIntervalMs` when events are being processed
+     * - uses `activeInterval` when events are being processed
      * - doubles delay when no events are found or errors occur
-     * - caps delay at `maxIdleIntervalMs`
+     * - caps delay at `maxIdleInterval`
      */
-    fun start() {
+    fun start(): Job =
         scope.launch {
 
-            var currentDelay = properties.polling.activeIntervalMs
+            var currentDelay = properties.polling.activeInterval
 
             while (isActive) {
                 try {
                     val batch = repository.fetchBatch(eventType)
+                    metrics?.recordFetched(batch.size)
 
                     if (batch.isEmpty()) {
                         delay(currentDelay.toMillis())
                         currentDelay = nextDelay(
                             currentDelay,
-                            properties.polling.maxIdleIntervalMs
+                            properties.polling.maxIdleInterval
                         )
                         continue
                     }
 
-                    currentDelay = properties.polling.activeIntervalMs
+                    currentDelay = properties.polling.activeInterval
 
                     batch.forEach { event ->
                         channel.send(event)
                     }
+
+                } catch (e: CancellationException) {
+                    throw e
 
                 } catch (e: Exception) {
                     log.error(e) {
@@ -79,12 +86,11 @@ class EventPoller(
 
                     currentDelay = nextDelay(
                         currentDelay,
-                        properties.polling.maxIdleIntervalMs
+                        properties.polling.maxIdleInterval
                     )
                 }
             }
         }
-    }
 
     /**
      * Calculates next polling delay using exponential backoff.

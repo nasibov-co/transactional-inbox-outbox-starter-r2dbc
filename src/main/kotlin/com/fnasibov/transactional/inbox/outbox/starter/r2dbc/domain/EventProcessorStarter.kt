@@ -2,6 +2,7 @@ package com.fnasibov.transactional.inbox.outbox.starter.r2dbc.domain
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import org.springframework.context.SmartLifecycle
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -46,8 +47,21 @@ class EventProcessorStarter(
      * - background processing tasks
      */
     override fun stop() {
+        processor.stop()
         scope.cancel()
         started.compareAndSet(true, false)
+    }
+
+    override fun stop(callback: Runnable) {
+        scope.launch {
+            try {
+                processor.stop()
+                scope.cancel()
+                started.compareAndSet(true, false)
+            } finally {
+                callback.run()
+            }
+        }
     }
 
     /**

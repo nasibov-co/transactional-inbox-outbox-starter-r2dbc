@@ -13,7 +13,7 @@ Gradle Kotlin DSL:
 
 ```kotlin
 dependencies {
-    implementation("io.github.fnasibov:transactional-inbox-outbox-starter-r2dbc:1.0.1")
+    implementation("io.github.fnasibov:transactional-inbox-outbox-starter-r2dbc:1.0.2")
 }
 ```
 
@@ -127,30 +127,32 @@ transactional:
 
   polling:
     # Polling interval while events are available.
-    activeIntervalMs: 100ms
+    active-interval: 100ms
 
     # Maximum idle interval after exponential backoff when no events are found.
-    maxIdleIntervalMs: 30s
+    max-idle-interval: 30s
 
     # Number of rows fetched by one poller in one database batch.
-    batchSize: 15
+    batch-size: 15
 
     # Internal channel capacity between pollers and workers.
-    channelCapacity: 25
-
-    # Reserved polling-level concurrency setting.
-    maxConcurrency: 5
+    channel-capacity: 25
 
   processing:
     # Number of worker coroutines consuming events from the shared channel.
     concurrency: 5
 
+    # Maximum time to drain already fetched events during shutdown.
+    shutdown-timeout: 30s
+
   retry:
     # Number of failed processing attempts before DEAD_LETTER.
-    maxImmediateAttempts: 3
+    max-attempts: 3
 
-    # Delay before a FAILED event becomes eligible for another poll.
-    initialDelayMs: 1000
+    # Exponential backoff settings before a FAILED event is retried.
+    initial-delay: 1s
+    multiplier: 2.0
+    max-delay: 1m
 ```
 
 Defaults:
@@ -158,16 +160,30 @@ Defaults:
 | Property | Default |
 | --- | --- |
 | `transactional.enabled` | `false` |
-| `transactional.polling.activeIntervalMs` | `100ms` |
-| `transactional.polling.maxIdleIntervalMs` | `30s` |
-| `transactional.polling.batchSize` | `15` |
-| `transactional.polling.channelCapacity` | `25` |
-| `transactional.polling.maxConcurrency` | `5` |
+| `transactional.polling.active-interval` | `100ms` |
+| `transactional.polling.max-idle-interval` | `30s` |
+| `transactional.polling.batch-size` | `15` |
+| `transactional.polling.channel-capacity` | `25` |
 | `transactional.processing.concurrency` | `5` |
-| `transactional.retry.maxImmediateAttempts` | `3` |
-| `transactional.retry.initialDelayMs` | `1000` |
+| `transactional.processing.shutdown-timeout` | `30s` |
+| `transactional.retry.max-attempts` | `3` |
+| `transactional.retry.initial-delay` | `1s` |
+| `transactional.retry.multiplier` | `2.0` |
+| `transactional.retry.max-delay` | `1m` |
 
-`activeIntervalMs` and `maxIdleIntervalMs` are `Duration` properties. Spring Boot can bind readable values such as `100ms`, `1s`, and `30s`.
+Duration properties support readable values such as `100ms`, `1s`, `30s`, and `1m`.
+
+### Deprecated configuration aliases
+
+The following legacy property names are still accepted for backward compatibility, but are deprecated and should be migrated to the new names.
+
+| Deprecated property | Use instead |
+| --- | --- |
+| `transactional.polling.active-interval-ms` | `transactional.polling.active-interval` |
+| `transactional.polling.max-idle-interval-ms` | `transactional.polling.max-idle-interval` |
+| `transactional.polling.max-concurrency` | `transactional.processing.concurrency` |
+| `transactional.retry.max-immediate-attempts` | `transactional.retry.max-attempts` |
+| `transactional.retry.initial-delay-ms` | `transactional.retry.initial-delay` |
 
 ## Custom Batch Fetching
 
@@ -214,9 +230,23 @@ PENDING -> PROCESSING -> PROCESSED
 Failure behavior:
 
 - Handler failures call `markAsFailed`.
-- Failed events are retried after `retry.initialDelayMs`.
-- Once `retry.maxImmediateAttempts` is reached, the event moves to `DEAD_LETTER`.
+- Failed events are retried with exponential backoff using `retry.initial-delay`, `retry.multiplier`, and `retry.max-delay`.
+- Once `retry.max-attempts` is reached, the event moves to `DEAD_LETTER`.
 - `handleDeadLetter` is called only after the event reaches `DEAD_LETTER`.
+
+## Observability
+
+When a `MeterRegistry` is available, the starter publishes Micrometer meters:
+
+| Meter | Meaning |
+| --- | --- |
+| `transactional.events.fetched` | Number of events fetched for processing |
+| `transactional.events.processed` | Number of successfully processed events |
+| `transactional.events.failed` | Number of processing failures |
+| `transactional.events.dead_letter` | Number of events moved to `DEAD_LETTER` |
+| `transactional.events.processing.duration` | Handler processing duration |
+
+When Spring Boot health contributor support is on the classpath, the starter also contributes a `transactionalInboxOutboxHealthIndicator` bean.
 
 ## Notes
 
