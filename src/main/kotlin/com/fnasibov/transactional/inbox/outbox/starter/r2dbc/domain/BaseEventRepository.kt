@@ -81,47 +81,23 @@ class BaseEventRepository(
      */
     private suspend fun <E : Event> defaultFetchBatch(eventType: Class<E>): List<E> {
         val now = ZonedDateTime.now()
-        val backoffTime = now.minusSeconds(properties.polling.activeIntervalMs.seconds)
+        val processingStaleBefore = EventPollingQueries.processingStaleBefore(
+            now,
+            properties
+        )
 
         val tableName = getTableName(eventType)
         val batchSize = properties.polling.batchSize
 
-        val selectIdsSql = """
-        SELECT id
-        FROM $tableName
-        WHERE (
-            status in (:pollingStatuses)
-            AND (
-                last_attempt_at IS NULL
-                OR last_attempt_at < :backoffTime
-            )
-        )
-        OR (
-            status = :failedStatus
-            AND (
-                next_retry_at IS NULL
-                OR next_retry_at <= :now
-            )
-        )
-        ORDER BY created_at ASC
-        LIMIT :limit
-        FOR UPDATE SKIP LOCKED
-    """.trimIndent()
-
-        val updateStatusSql = """
-        UPDATE $tableName
-        SET status = 'PROCESSING',
-            last_attempt_at = :now,
-            updated_at = :now,
-            next_retry_at = NULL
-        WHERE id IN (:ids)
-    """.trimIndent()
+        val selectIdsSql = EventPollingQueries.selectIdsSql(tableName)
+        val updateStatusSql = EventPollingQueries.updateStatusSql(tableName)
 
         return transactionalOperator.execute {
             template.databaseClient.sql(selectIdsSql)
-                .bind("pollingStatuses", listOf(EventStatus.PENDING.name, EventStatus.PROCESSING.name))
+                .bind("pendingStatus", EventStatus.PENDING.name)
+                .bind("processingStatus", EventStatus.PROCESSING.name)
                 .bind("failedStatus", EventStatus.FAILED.name)
-                .bind("backoffTime", backoffTime)
+                .bind("processingStaleBefore", processingStaleBefore)
                 .bind("now", now)
                 .bind("limit", batchSize)
                 .map { row, _ ->

@@ -141,6 +141,9 @@ transactional:
     # Reserved polling-level concurrency setting.
     maxConcurrency: 5
 
+    # Time after which PROCESSING events are considered stale and eligible again.
+    processingStaleTimeout: 5m
+
   processing:
     # Number of worker coroutines consuming events from the shared channel.
     concurrency: 5
@@ -163,11 +166,12 @@ Defaults:
 | `transactional.polling.batchSize` | `15` |
 | `transactional.polling.channelCapacity` | `25` |
 | `transactional.polling.maxConcurrency` | `5` |
+| `transactional.polling.processingStaleTimeout` | `5m` |
 | `transactional.processing.concurrency` | `5` |
 | `transactional.retry.maxImmediateAttempts` | `3` |
 | `transactional.retry.initialDelayMs` | `1000` |
 
-`activeIntervalMs` and `maxIdleIntervalMs` are `Duration` properties. Spring Boot can bind readable values such as `100ms`, `1s`, and `30s`.
+`activeIntervalMs`, `maxIdleIntervalMs`, and `processingStaleTimeout` are `Duration` properties. Spring Boot can bind readable values such as `100ms`, `1s`, and `30s`.
 
 ## Custom Batch Fetching
 

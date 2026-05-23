@@ -70,7 +70,14 @@ data class TransactionalProperties(
          *
          * Default: 25.
          */
-        var channelCapacity: Int = 25
+        var channelCapacity: Int = 25,
+
+        /**
+         * Time after which an event left in PROCESSING can be picked up again.
+         *
+         * Default: 5 minutes.
+         */
+        var processingStaleTimeout: Duration = Duration.ofMinutes(5)
     )
 
     /**
