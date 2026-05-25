@@ -1,6 +1,6 @@
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.fnasibov/transactional-inbox-outbox-starter-r2dbc?label=maven%20central)](https://central.sonatype.com/artifact/io.github.fnasibov/transactional-inbox-outbox-starter-r2dbc)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
-
+<img referrerpolicy="no-referrer-when-downgrade" src="https://static.scarf.sh/a.png?x-pxid=dfbc9d9c-c0c5-4e8d-b14c-c48fe4d77ee9" />
 # Transactional Inbox/Outbox R2DBC Starter
 
 A lightweight Spring Boot starter for implementing transactional inbox/outbox processing with **R2DBC** and **Kotlin coroutines**.
