@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "com.fnasibov"
-version = "1.0.3"
+version = "1.0.4"
 
 allprojects {
     group = rootProject.group

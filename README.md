@@ -13,7 +13,7 @@ Gradle Kotlin DSL:
 
 ```kotlin
 dependencies {
-    implementation("io.github.fnasibov:transactional-inbox-outbox-starter-r2dbc:1.0.3")
+    implementation("io.github.fnasibov:transactional-inbox-outbox-starter-r2dbc:1.0.4")
 }
 ```
 
@@ -267,3 +267,7 @@ When Spring Boot health contributor support is on the classpath, the starter als
 - Default polling uses `FOR UPDATE SKIP LOCKED`, so it is intended for databases that support this locking style.
 - A handler is required for an event type to be polled because pollers are created from registered handler event types.
 - Event classes can contain any domain-specific columns in addition to the fields required by `Event`.
+
+## Contact
+
+Feel free to contact me about anything at fakhri.nasibov@gmail.com.
