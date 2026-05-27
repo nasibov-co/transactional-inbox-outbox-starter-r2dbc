@@ -19,6 +19,15 @@ dependencies {
 
 The consuming application must also provide a configured R2DBC connection and a `ReactiveTransactionManager`.
 
+## Project Modules
+
+This repository follows the Spring Boot starter layout:
+
+| Module | Purpose |
+| --- | --- |
+| `transactional-inbox-outbox-autoconfigure-r2dbc` | Auto-configuration, public API, domain implementation, configuration metadata, and tests. |
+| `transactional-inbox-outbox-starter-r2dbc` | Thin starter artifact that brings the auto-configure module and required runtime dependencies. |
+
 ## Quick Start
 
 ### 1. Define an event entity
