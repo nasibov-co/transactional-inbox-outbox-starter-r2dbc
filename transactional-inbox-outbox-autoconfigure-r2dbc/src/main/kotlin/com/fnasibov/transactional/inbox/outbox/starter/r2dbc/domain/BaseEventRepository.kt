@@ -10,6 +10,7 @@ import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.data.relational.core.mapping.Table
 import org.springframework.data.relational.core.query.Criteria.where
 import org.springframework.data.relational.core.query.Query
+import org.springframework.r2dbc.core.bind
 import org.springframework.transaction.reactive.TransactionalOperator
 import reactor.core.publisher.Mono
 import java.time.Duration

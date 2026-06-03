@@ -14,9 +14,8 @@ class DemoEventHandler : EventHandler<DemoEvent> {
 
     override suspend fun handle(event: DemoEvent) {
         logger.info(
-            "Handled demo event id={} priority={} payload={}",
+            "Handled demo event id={} payload={}",
             event.id,
-            event.priority,
             event.payload
         )
     }

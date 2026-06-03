@@ -1,8 +1,6 @@
 package com.fnasibov.transactional.inbox.outbox.demo
 
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.EventStatus
-import kotlinx.coroutines.reactor.awaitSingle
-import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -13,7 +11,7 @@ import java.util.UUID
 @RestController
 @RequestMapping("/demo-events")
 class DemoEventController(
-    private val template: R2dbcEntityTemplate
+    private val repository: DemoEventRepository
 ) {
 
     @PostMapping
@@ -21,13 +19,12 @@ class DemoEventController(
         @RequestBody request: CreateDemoEventRequest
     ): DemoEventResponse {
         val event = DemoEvent(
-            id = UUID.randomUUID(),
             status = EventStatus.PENDING,
             createdAt = ZonedDateTime.now(),
             payload = request.payload
         )
 
-        val saved = template.insert(event).awaitSingle()
+        val saved = repository.save(event)
 
         return DemoEventResponse(
             id = saved.id,
@@ -42,7 +39,7 @@ data class CreateDemoEventRequest(
 )
 
 data class DemoEventResponse(
-    val id: UUID,
+    val id: UUID?,
     val status: EventStatus,
     val payload: String
 )

@@ -24,7 +24,7 @@ interface Event {
     /**
      * Unique event identifier.
      */
-    val id: UUID
+    val id: UUID?
 
     /**
      * Current processing status of the event.

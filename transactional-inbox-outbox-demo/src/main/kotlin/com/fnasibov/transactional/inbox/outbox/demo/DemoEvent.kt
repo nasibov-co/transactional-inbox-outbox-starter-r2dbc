@@ -10,7 +10,7 @@ import java.util.UUID
 @Table("demo_events")
 data class DemoEvent(
     @Id
-    override val id: UUID,
+    override val id: UUID? = null,
     override val status: EventStatus = EventStatus.PENDING,
     override val createdAt: ZonedDateTime = ZonedDateTime.now(),
     override val updatedAt: ZonedDateTime? = null,
