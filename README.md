@@ -13,7 +13,7 @@ Gradle Kotlin DSL:
 
 ```kotlin
 dependencies {
-    implementation("io.github.fnasibov:transactional-inbox-outbox-starter-r2dbc:1.0.4")
+    implementation("io.github.fnasibov:transactional-inbox-outbox-starter-r2dbc:1.0.5")
 }
 ```
 
