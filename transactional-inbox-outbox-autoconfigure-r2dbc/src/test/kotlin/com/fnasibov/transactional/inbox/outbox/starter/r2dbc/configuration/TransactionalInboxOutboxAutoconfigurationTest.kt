@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.boot.test.context.runner.ApplicationContextRunner
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.core.io.ClassPathResource
 import org.springframework.data.r2dbc.core.R2dbcEntityTemplate
 import org.springframework.transaction.ReactiveTransaction
 import org.springframework.transaction.ReactiveTransactionManager
@@ -26,7 +27,12 @@ class TransactionalInboxOutboxAutoconfigurationTest {
         .withUserConfiguration(R2dbcInfrastructureConfiguration::class.java)
         .withConfiguration(
             org.springframework.boot.autoconfigure.AutoConfigurations.of(
-                TransactionalInboxOutboxAutoconfiguration::class.java
+                TransactionalInboxOutboxAutoconfiguration::class.java,
+                TransactionalInboxOutboxInfrastructureAutoConfiguration::class.java,
+                TransactionalInboxOutboxRepositoryAutoConfiguration::class.java,
+                TransactionalInboxOutboxProcessorAutoConfiguration::class.java,
+                TransactionalInboxOutboxProcessorStarterAutoConfiguration::class.java,
+                TransactionalInboxOutboxActuatorAutoConfiguration::class.java
             )
         )
 
@@ -121,6 +127,28 @@ class TransactionalInboxOutboxAutoconfigurationTest {
                     context.getBean("transactionalCoroutineScope")
                 )
             }
+    }
+
+    @Test
+    fun `auto configuration imports define explicit loading order`() {
+        val imports = ClassPathResource(
+            "META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports"
+        ).inputStream.bufferedReader().use { reader ->
+            reader.readLines()
+                .filter { line -> line.isNotBlank() }
+        }
+
+        assertEquals(
+            listOf(
+                TransactionalInboxOutboxAutoconfiguration::class.qualifiedName,
+                TransactionalInboxOutboxInfrastructureAutoConfiguration::class.qualifiedName,
+                TransactionalInboxOutboxRepositoryAutoConfiguration::class.qualifiedName,
+                TransactionalInboxOutboxProcessorAutoConfiguration::class.qualifiedName,
+                TransactionalInboxOutboxProcessorStarterAutoConfiguration::class.qualifiedName,
+                TransactionalInboxOutboxActuatorAutoConfiguration::class.qualifiedName
+            ),
+            imports
+        )
     }
 
     @Configuration(proxyBeanMethods = false)
