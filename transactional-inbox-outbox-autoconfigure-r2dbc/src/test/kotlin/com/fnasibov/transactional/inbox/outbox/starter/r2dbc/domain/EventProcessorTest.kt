@@ -1,6 +1,7 @@
 package com.fnasibov.transactional.inbox.outbox.starter.r2dbc.domain
 
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.EventHandler
+import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.BaseEvent
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.Event
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.EventStatus
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.configuration.TransactionalProperties
@@ -15,7 +16,6 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import org.junit.jupiter.api.Test
 import java.time.Duration
-import java.time.ZonedDateTime
 import java.util.UUID
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.test.assertFalse
@@ -74,15 +74,9 @@ class EventProcessorTest {
         }
     }
 
-    data class TestEvent(
-        override val id: UUID = UUID.randomUUID(),
-        override val status: EventStatus = EventStatus.PENDING,
-        override val createdAt: ZonedDateTime = ZonedDateTime.now(),
-        override val updatedAt: ZonedDateTime? = null,
-        override val retryCount: Int = 0,
-        override val lastAttemptAt: ZonedDateTime? = null,
-        override val nextRetryAt: ZonedDateTime? = null
-    ) : Event
+    private class TestEvent : BaseEvent(
+        id = UUID.randomUUID()
+    )
 
     private class DelayingEventHandler(
         private val started: CompletableDeferred<Unit>,

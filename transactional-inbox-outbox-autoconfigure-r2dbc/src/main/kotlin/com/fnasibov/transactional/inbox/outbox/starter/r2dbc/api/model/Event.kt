@@ -18,6 +18,9 @@ import java.util.*
  *
  * Event implementations are typically mapped to database tables
  * using Spring Data annotations such as `@Table`.
+ *
+ * Applications can extend [BaseEvent] when they only need to add
+ * domain-specific event fields.
  */
 interface Event {
 

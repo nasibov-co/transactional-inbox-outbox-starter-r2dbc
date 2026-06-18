@@ -32,31 +32,19 @@ This repository follows the Spring Boot starter layout:
 
 ### 1. Define an event entity
 
-Each event type is a Spring Data R2DBC entity and must implement `Event`.
+Each event type is a Spring Data R2DBC entity. Extend `BaseEvent` to inherit the lifecycle columns and add only your domain-specific fields.
 
 ```kotlin
-import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.Event
-import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.EventStatus
-import org.springframework.data.annotation.Id
+import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.BaseEvent
 import org.springframework.data.relational.core.mapping.Table
-import java.time.ZonedDateTime
 import java.util.UUID
 
 @Table("payment_events")
 data class PaymentEvent(
-    @Id
-    override val id: UUID,
-    override val status: EventStatus = EventStatus.PENDING,
-    override val createdAt: ZonedDateTime = ZonedDateTime.now(),
-    override val updatedAt: ZonedDateTime? = null,
-    override val retryCount: Int = 0,
-    override val lastAttemptAt: ZonedDateTime? = null,
-    override val nextRetryAt: ZonedDateTime? = null,
-
     val paymentId: UUID,
     val amount: Long,
     val currency: String
-) : Event
+) : BaseEvent()
 ```
 
 The table name is read from `@Table`, so the annotation is required for default polling.

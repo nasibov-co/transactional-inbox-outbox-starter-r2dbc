@@ -5,7 +5,6 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
-import java.time.ZonedDateTime
 import java.util.UUID
 
 @RestController
@@ -19,9 +18,8 @@ class DemoEventController(
         @RequestBody request: CreateDemoEventRequest
     ): DemoEventResponse {
         val event = DemoEvent(
-            status = EventStatus.PENDING,
-            createdAt = ZonedDateTime.now(),
-            payload = request.payload
+            payload = request.payload,
+            priority = request.priority
         )
 
         val saved = repository.save(event)
@@ -29,17 +27,20 @@ class DemoEventController(
         return DemoEventResponse(
             id = saved.id,
             status = saved.status,
-            payload = saved.payload
+            payload = saved.payload,
+            priority = saved.priority
         )
     }
 }
 
 data class CreateDemoEventRequest(
     val payload: String,
+    val priority: Int = 0
 )
 
 data class DemoEventResponse(
     val id: UUID?,
     val status: EventStatus,
-    val payload: String
+    val payload: String,
+    val priority: Int
 )
