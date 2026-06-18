@@ -47,11 +47,13 @@ data class PaymentEvent(
 ) : BaseEvent()
 ```
 
+`BaseEvent` provides `id`, `status`, `createdAt`, `updatedAt`, `retryCount`, `lastAttemptAt`, and `nextRetryAt` with sensible defaults. If your model cannot extend it, implement `Event` directly and provide the same lifecycle fields yourself.
+
 The table name is read from `@Table`, so the annotation is required for default polling.
 
 ### 2. Create the table
 
-The default repository expects the lifecycle columns from `Event` to exist in snake case.
+The default repository expects the lifecycle columns from `BaseEvent` / `Event` to exist in snake case.
 
 ```sql
 CREATE TABLE payment_events (
@@ -284,7 +286,8 @@ When Spring Boot health contributor support is on the classpath, the starter als
 - The starter is database-backed and does not require an external broker.
 - Default polling uses `FOR UPDATE SKIP LOCKED`, so it is intended for databases that support this locking style.
 - A handler is required for an event type to be polled because pollers are created from registered handler event types.
-- Event classes can contain any domain-specific columns in addition to the fields required by `Event`.
+- Extend `BaseEvent` for the standard lifecycle columns, or implement `Event` directly when you need a fully custom model.
+- Event classes can contain any domain-specific columns in addition to the lifecycle fields required by the starter.
 
 ## Contact
 
