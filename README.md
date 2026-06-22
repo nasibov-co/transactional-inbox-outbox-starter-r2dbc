@@ -13,7 +13,7 @@ Gradle Kotlin DSL:
 
 ```kotlin
 dependencies {
-    implementation("io.github.fnasibov:transactional-inbox-outbox-starter-r2dbc:1.0.8")
+    implementation("io.github.fnasibov:transactional-inbox-outbox-starter-r2dbc:1.1.0")
 }
 ```
 
@@ -171,8 +171,15 @@ transactional:
     processing-stale-timeout: 5m
 
   processing:
-    # Number of worker coroutines consuming events from the shared channel.
+    # Default number of worker coroutines per event type.
     concurrency: 5
+
+    # Optional event type specific processing settings.
+    event-types:
+      - event-type: com.example.billing.PaymentEvent
+        concurrency: 2
+      - event-type: com.example.billing.InvoiceEvent
+        concurrency: 8
 
     # Maximum time to drain already fetched events during shutdown.
     shutdown-timeout: 30s
@@ -198,6 +205,7 @@ Defaults:
 | `transactional.polling.channel-capacity` | `25` |
 | `transactional.polling.processing-stale-timeout` | `5m` |
 | `transactional.processing.concurrency` | `5` |
+| `transactional.processing.event-types` | empty |
 | `transactional.processing.shutdown-timeout` | `30s` |
 | `transactional.retry.max-attempts` | `3` |
 | `transactional.retry.initial-delay` | `1s` |
@@ -247,10 +255,10 @@ Custom strategies are responsible for their own locking, transaction boundaries,
 ## Processing Flow
 
 ```text
-Database -> EventPoller -> Channel -> EventWorker -> EventHandler(s)
+Database -> EventPoller -> Event type channel -> EventWorker -> EventHandler(s)
 ```
 
-For each registered event type, the starter starts a poller. Fetched events are sent into a shared coroutine channel and consumed by worker coroutines.
+For each registered event type, the starter starts a poller, a dedicated coroutine channel, and worker coroutines for that type. If an item in `transactional.processing.event-types` matches the event class by fully qualified or simple name, its `concurrency` controls that type's worker count; otherwise the starter falls back to `transactional.processing.concurrency`.
 
 Lifecycle statuses:
 

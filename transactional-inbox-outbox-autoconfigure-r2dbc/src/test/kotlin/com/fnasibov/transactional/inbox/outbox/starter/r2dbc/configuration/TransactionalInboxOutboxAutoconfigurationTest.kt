@@ -1,5 +1,6 @@
 package com.fnasibov.transactional.inbox.outbox.starter.r2dbc.configuration
 
+import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.BaseEvent
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.domain.EventProcessor
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.domain.EventProcessorStarter
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.domain.EventRepository
@@ -77,6 +78,26 @@ class TransactionalInboxOutboxAutoconfigurationTest {
                 assertEquals(2, properties.retry.initialDelay.seconds)
                 assertEquals(30, properties.retry.maxDelay.seconds)
                 assertEquals(3.0, properties.retry.multiplier)
+            }
+    }
+
+    @Test
+    fun `binds event type processing properties and falls back to default concurrency`() {
+        contextRunner
+            .withPropertyValues(
+                "transactional.enabled=true",
+                "transactional.processing.concurrency=2",
+                "transactional.processing.event-types[0].event-type=BindingEvent",
+                "transactional.processing.event-types[0].concurrency=7",
+                "transactional.processing.event-types[1].event-type=${QualifiedBindingEvent::class.java.name}",
+                "transactional.processing.event-types[1].concurrency=3"
+            )
+            .run { context ->
+                val properties = context.getBean(TransactionalProperties::class.java)
+
+                assertEquals(7, properties.processing.concurrencyFor(BindingEvent::class.java))
+                assertEquals(3, properties.processing.concurrencyFor(QualifiedBindingEvent::class.java))
+                assertEquals(2, properties.processing.concurrencyFor(FallbackBindingEvent::class.java))
             }
     }
 
@@ -190,4 +211,10 @@ class TransactionalInboxOutboxAutoconfigurationTest {
             val customRepository: EventRepository = mockk(relaxed = true)
         }
     }
+
+    private class BindingEvent : BaseEvent()
+
+    private class QualifiedBindingEvent : BaseEvent()
+
+    private class FallbackBindingEvent : BaseEvent()
 }

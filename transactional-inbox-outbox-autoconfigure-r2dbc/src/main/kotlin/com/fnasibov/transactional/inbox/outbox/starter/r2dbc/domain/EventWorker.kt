@@ -3,7 +3,6 @@ package com.fnasibov.transactional.inbox.outbox.starter.r2dbc.domain
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.EventHandler
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.Event
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.EventStatus
-import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.configuration.TransactionalProperties
 import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.domain.exception.HandlerNotFoundException
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.CoroutineScope
@@ -35,7 +34,7 @@ import kotlin.coroutines.cancellation.CancellationException
 class EventWorker(
     private val handlers: Map<Class<out Event>, List<EventHandler<out Event>>>,
     private val repository: EventRepository,
-    private val properties: TransactionalProperties,
+    private val concurrency: Int,
     private val channel: Channel<Event>,
     private val scope: CoroutineScope,
     private val metrics: EventProcessingMetrics?
@@ -46,14 +45,14 @@ class EventWorker(
     /**
      * Starts worker coroutines based on configured concurrency level.
      *
-     * Each worker runs in an infinite loop consuming events from the shared channel
+     * Each worker runs in an infinite loop consuming events from its assigned channel
      * and processing them sequentially.
      *
      * Number of concurrent workers is defined by configuration.
      */
     @Suppress("UNCHECKED_CAST")
     fun start(): List<Job> =
-        List(properties.processing.concurrency) {
+        List(concurrency) {
             scope.launch {
                 for (event in channel) {
                     var handlers = emptyList<EventHandler<out Event>>()

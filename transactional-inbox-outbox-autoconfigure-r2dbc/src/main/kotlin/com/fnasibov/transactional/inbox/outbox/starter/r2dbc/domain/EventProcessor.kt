@@ -18,12 +18,12 @@ import java.util.concurrent.atomic.AtomicBoolean
  *
  * The processor is responsible for:
  * - starting event pollers per event type
- * - coordinating event dispatch through an internal channel
+ * - coordinating event dispatch through event type specific internal channels
  * - delegating execution to event handlers via a worker
  *
  * The processing model is fully asynchronous and based on coroutines.
- * Each event type is polled independently, while processing is centralized
- * through a shared worker pipeline.
+ * Each event type is polled and processed independently through its own
+ * channel and worker pipeline.
  *
  * Architecture overview:
  * EventPoller(s) -> Channel -> EventWorker -> EventHandler(s)
@@ -39,14 +39,14 @@ class EventProcessor(
     private val started = AtomicBoolean(false)
     private val pollerJobs = mutableListOf<Job>()
     private val workerJobs = mutableListOf<Job>()
-    private var channel: Channel<Event>? = null
+    private val channels = mutableListOf<Channel<Event>>()
 
     /**
      * Starts the event processing pipeline.
      *
      * This method:
      * - initializes one [EventPoller] per event type
-     * - starts the shared [EventWorker]
+     * - starts an [EventWorker] group per event type
      *
      * After invocation, the system continuously polls, buffers,
      * and processes events until the coroutine scope is cancelled.
@@ -56,43 +56,42 @@ class EventProcessor(
             return
         }
 
-        /*
-         * Internal buffer used to decouple polling and processing stages.
-         *
-         * Capacity is configured via `transactional.polling.channel-capacity`.
-         * Overflow strategy is set to SUSPEND to ensure backpressure.
-         */
-        val processingChannel = Channel<Event>(
-            capacity = properties.polling.channelCapacity,
-            onBufferOverflow = BufferOverflow.SUSPEND
-        )
-        channel = processingChannel
-
-        // Start pollers for each event type
-        val pollers = handlers
+        val eventTypes = handlers
             .map { (eventType, _) -> eventType }
             .distinct()
-            .map { eventType ->
-                EventPoller(
-                    eventType = eventType,
-                    repository = repository,
-                    properties = properties,
-                    channel = processingChannel,
-                    scope = scope,
-                    metrics = metrics
-                )
-            }
-        pollerJobs += pollers.map { it.start() }
 
-        // Start worker responsible for event dispatching
-        workerJobs += EventWorker(
-            handlers = handlers,
-            repository = repository,
-            properties = properties,
-            channel = processingChannel,
-            scope = scope,
-            metrics = metrics
-        ).start()
+        eventTypes.forEach { eventType ->
+            /*
+             * Internal buffer used to decouple polling and processing stages.
+             *
+             * Capacity is configured via `transactional.polling.channel-capacity`.
+             * Overflow strategy is set to SUSPEND to ensure backpressure.
+             */
+            val processingChannel = Channel<Event>(
+                capacity = properties.polling.channelCapacity,
+                onBufferOverflow = BufferOverflow.SUSPEND
+            )
+
+            channels += processingChannel
+
+            pollerJobs += EventPoller(
+                eventType = eventType,
+                repository = repository,
+                properties = properties,
+                channel = processingChannel,
+                scope = scope,
+                metrics = metrics
+            ).start()
+
+            workerJobs += EventWorker(
+                handlers = handlers,
+                repository = repository,
+                concurrency = properties.processing.concurrencyFor(eventType),
+                channel = processingChannel,
+                scope = scope,
+                metrics = metrics
+            ).start()
+        }
     }
 
     fun stop() = runBlocking {
@@ -105,7 +104,7 @@ class EventProcessor(
         }
 
         pollerJobs.forEach { it.cancelAndJoin() }
-        channel?.close()
+        channels.forEach { it.close() }
 
         val drained = withTimeoutOrNull(properties.processing.shutdownTimeout.toMillis()) {
             workerJobs.joinAll()
@@ -117,6 +116,6 @@ class EventProcessor(
 
         pollerJobs.clear()
         workerJobs.clear()
-        channel = null
+        channels.clear()
     }
 }

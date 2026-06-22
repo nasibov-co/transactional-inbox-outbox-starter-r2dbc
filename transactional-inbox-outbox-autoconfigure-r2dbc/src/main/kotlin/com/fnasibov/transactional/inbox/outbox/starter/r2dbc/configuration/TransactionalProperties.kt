@@ -1,8 +1,10 @@
 package com.fnasibov.transactional.inbox.outbox.starter.r2dbc.configuration
 
+import com.fnasibov.transactional.inbox.outbox.starter.r2dbc.api.model.Event
 import jakarta.validation.Valid
 import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.Min
+import jakarta.validation.constraints.NotBlank
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.DeprecatedConfigurationProperty
 import org.springframework.validation.annotation.Validated
@@ -131,12 +133,18 @@ data class TransactionalProperties(
     data class Processing(
 
         /**
-         * Number of concurrent event processing workers.
+         * Default number of concurrent event processing workers per event type.
          *
          * Default: 5.
          */
         @field:Min(1)
         var concurrency: Int = 5,
+
+        /**
+         * Event type specific processing settings.
+         */
+        @field:Valid
+        var eventTypes: List<EventTypeProcessing> = emptyList(),
 
         /**
          * Maximum time to wait for workers to drain already fetched events
@@ -145,7 +153,36 @@ data class TransactionalProperties(
          * Default: 30 seconds.
          */
         var shutdownTimeout: Duration = Duration.ofSeconds(30)
-    )
+    ) {
+
+        fun concurrencyFor(eventType: Class<out Event>): Int =
+            eventTypes.firstOrNull { it.matches(eventType) }?.concurrency
+                ?: concurrency
+    }
+
+    /**
+     * Processing settings for a specific event type.
+     */
+    data class EventTypeProcessing(
+
+        /**
+         * Fully qualified or simple event class name.
+         */
+        @field:NotBlank
+        var eventType: String = "",
+
+        /**
+         * Number of concurrent workers for the event type.
+         */
+        @field:Min(1)
+        var concurrency: Int? = null
+    ) {
+
+        fun matches(type: Class<out Event>): Boolean =
+            eventType == type.name ||
+                eventType == type.canonicalName ||
+                eventType == type.simpleName
+    }
 
     /**
      * Retry behavior configuration.
