@@ -176,7 +176,7 @@ transactional:
 
     # Optional event type specific processing settings.
     event-types:
-      - event-type: com.example.billing.PaymentEvent
+      - event-type: PaymentEvent
         concurrency: 2
       - event-type: com.example.billing.InvoiceEvent
         concurrency: 8
