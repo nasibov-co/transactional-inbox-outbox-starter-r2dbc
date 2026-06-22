@@ -6,7 +6,6 @@ import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import org.springframework.boot.context.properties.ConfigurationProperties
-import org.springframework.boot.context.properties.DeprecatedConfigurationProperty
 import org.springframework.validation.annotation.Validated
 import java.time.Duration
 
@@ -86,46 +85,7 @@ data class TransactionalProperties(
          * Default: 5 minutes.
          */
         var processingStaleTimeout: Duration = Duration.ofMinutes(5)
-    ) {
-
-        @Deprecated(
-            message = "Use maxIdleInterval instead.",
-            replaceWith = ReplaceWith("maxIdleInterval")
-        )
-        @get:DeprecatedConfigurationProperty(
-            reason = "Renamed for Spring Boot duration property naming.",
-            replacement = "transactional.polling.max-idle-interval"
-        )
-        var maxIdleIntervalMs: Duration
-            get() = maxIdleInterval
-            set(value) {
-                maxIdleInterval = value
-            }
-
-        @Deprecated(
-            message = "Use activeInterval instead.",
-            replaceWith = ReplaceWith("activeInterval")
-        )
-        @get:DeprecatedConfigurationProperty(
-            reason = "Renamed for Spring Boot duration property naming.",
-            replacement = "transactional.polling.active-interval"
-        )
-        var activeIntervalMs: Duration
-            get() = activeInterval
-            set(value) {
-                activeInterval = value
-            }
-
-        @Deprecated(
-            message = "Use processing.concurrency instead.",
-            replaceWith = ReplaceWith("processing.concurrency")
-        )
-        @get:DeprecatedConfigurationProperty(
-            reason = "This polling-level setting was unused and has been removed.",
-            replacement = "transactional.processing.concurrency"
-        )
-        var maxConcurrency: Int = 5
-    }
+    )
 
     /**
      * Event processing execution settings.
@@ -219,34 +179,5 @@ data class TransactionalProperties(
          * Default: 1 minute.
          */
         var maxDelay: Duration = Duration.ofMinutes(1),
-    ) {
-
-        @Deprecated(
-            message = "Use maxAttempts instead.",
-            replaceWith = ReplaceWith("maxAttempts")
-        )
-        @get:DeprecatedConfigurationProperty(
-            reason = "Renamed for clearer retry semantics.",
-            replacement = "transactional.retry.max-attempts"
-        )
-        var maxImmediateAttempts: Int
-            get() = maxAttempts
-            set(value) {
-                maxAttempts = value
-            }
-
-        @Deprecated(
-            message = "Use initialDelay instead.",
-            replaceWith = ReplaceWith("initialDelay")
-        )
-        @get:DeprecatedConfigurationProperty(
-            reason = "Replaced by a Duration property.",
-            replacement = "transactional.retry.initial-delay"
-        )
-        var initialDelayMs: Long
-            get() = initialDelay.toMillis()
-            set(value) {
-                initialDelay = Duration.ofMillis(value)
-            }
-    }
+    )
 }

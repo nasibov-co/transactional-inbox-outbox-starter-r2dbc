@@ -13,7 +13,7 @@ Gradle Kotlin DSL:
 
 ```kotlin
 dependencies {
-    implementation("io.github.fnasibov:transactional-inbox-outbox-starter-r2dbc:1.1.0")
+    implementation("io.github.fnasibov:transactional-inbox-outbox-starter-r2dbc:2.0.0")
 }
 ```
 
@@ -213,18 +213,6 @@ Defaults:
 | `transactional.retry.max-delay` | `1m` |
 
 Duration properties support readable values such as `100ms`, `1s`, `30s`, and `1m`.
-
-### Deprecated configuration aliases
-
-The following legacy property names are still accepted for backward compatibility, but are deprecated and should be migrated to the new names.
-
-| Deprecated property | Use instead |
-| --- | --- |
-| `transactional.polling.active-interval-ms` | `transactional.polling.active-interval` |
-| `transactional.polling.max-idle-interval-ms` | `transactional.polling.max-idle-interval` |
-| `transactional.polling.max-concurrency` | `transactional.processing.concurrency` |
-| `transactional.retry.max-immediate-attempts` | `transactional.retry.max-attempts` |
-| `transactional.retry.initial-delay-ms` | `transactional.retry.initial-delay` |
 
 ## Custom Batch Fetching
 

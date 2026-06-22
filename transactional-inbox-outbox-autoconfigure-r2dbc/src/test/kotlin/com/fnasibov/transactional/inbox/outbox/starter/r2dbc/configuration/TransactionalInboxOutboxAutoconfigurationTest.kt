@@ -102,26 +102,6 @@ class TransactionalInboxOutboxAutoconfigurationTest {
     }
 
     @Test
-    fun `binds deprecated property aliases`() {
-        contextRunner
-            .withPropertyValues(
-                "transactional.enabled=true",
-                "transactional.polling.active-interval-ms=300ms",
-                "transactional.polling.max-idle-interval-ms=15s",
-                "transactional.retry.initial-delay-ms=2500",
-                "transactional.retry.max-immediate-attempts=4"
-            )
-            .run { context ->
-                val properties = context.getBean(TransactionalProperties::class.java)
-
-                assertEquals(300, properties.polling.activeInterval.toMillis())
-                assertEquals(15, properties.polling.maxIdleInterval.seconds)
-                assertEquals(2500, properties.retry.initialDelay.toMillis())
-                assertEquals(4, properties.retry.maxAttempts)
-            }
-    }
-
-    @Test
     fun `fails fast on invalid numeric properties`() {
         contextRunner
             .withPropertyValues(
